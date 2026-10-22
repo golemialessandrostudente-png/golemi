@@ -1,0 +1,92 @@
+  
+#!/bin/bash
+
+WWW="./www"
+FAVICON="$WWW/favicon.ico"
+LOG="error.log"
+
+# Controlla che siano stati passati degli utenti
+if [ "$#" -eq 0 ]; then
+    echo "Errore: devi specificare almeno un utente."
+    echo "Codice errore: 1"
+    exit 1
+fi
+
+# Controlla che esistano www e favicon.ico
+if [ ! -d "$WWW" ] || [ ! -f "$FAVICON" ]; then
+    echo "Errore: cartella www o file favicon.ico mancante."
+    echo "Codice errore: 2"
+    exit 2
+fi
+
+# Se viene passato un solo utente
+if [ "$#" -eq 1 ]; then
+    UTENTE="$1"
+    CARTELLA="$WWW/$UTENTE"
+
+    if [ -d "$CARTELLA" ]; then
+        echo "Errore: la cartella dell'utente '$UTENTE' esiste già."
+        echo "Codice errore: 3"
+        exit 3
+    fi
+
+    if ! mkdir -m 755 -- "$CARTELLA"; then
+        echo "Errore: impossibile creare la cartella."
+        echo "Codice errore: 4"
+        exit 4
+    fi
+
+    cp -- "$FAVICON" "$CARTELLA/favicon.ico" || exit 4
+    chmod 444 "$CARTELLA/favicon.ico"
+    chmod 644 "$CARTELLA"/* 2>/dev/null
+
+    echo "Cartella creata per l'utente '$UTENTE'."
+    exit 0
+fi
+
+# Se vengono passati più utenti
+: > "$LOG"
+ERRORI=0
+
+for UTENTE in "$@"; do
+    CARTELLA="$WWW/$UTENTE"
+
+    # Evita nomi non validi o percorsi esterni a www
+    if [[ ! "$UTENTE" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "$UTENTE: nome non valido" >> "$LOG"
+        ERRORI=1
+        continue
+    fi
+
+    if [ -e "$CARTELLA" ]; then
+        echo "$UTENTE: cartella già esistente" >> "$LOG"
+        ERRORI=1
+        continue
+    fi
+
+    if ! mkdir -m 755 -- "$CARTELLA"; then
+        echo "$UTENTE: impossibile creare la cartella" >> "$LOG"
+        ERRORI=1
+        continue
+    fi
+
+    if ! cp -- "$FAVICON" "$CARTELLA/favicon.ico"; then
+        echo "$UTENTE: errore nella copia di favicon.ico" >> "$LOG"
+        rmdir -- "$CARTELLA" 2>/dev/null
+        ERRORI=1
+        continue
+    fi
+
+    chmod 444 "$CARTELLA/favicon.ico"
+    chmod 644 "$CARTELLA"/* 2>/dev/null
+
+    echo "Cartella creata per '$UTENTE'."
+done
+
+if [ "$ERRORI" -eq 1 ]; then
+    echo "Alcuni utenti hanno generato errori. Consulta $LOG"
+    exit 5
+fi
+
+echo "Tutte le cartelle sono state create correttamente."
+exit 0
